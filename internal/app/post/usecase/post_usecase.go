@@ -81,7 +81,7 @@ func (pu *PostUsecase) GetPost(postId int, relatedStrs []string) (map[string]int
 		postFullMap["forum"] = forum
 	}
 	if utils.Find(relatedStrs, "thread") {
-		thread, err := pu.threadRepo.GetThreadBySlugOrId("", post.Thread)
+		thread, err := pu.threadRepo.GetThreadById(post.Thread)
 		if err != nil {
 			return nil, err
 		}

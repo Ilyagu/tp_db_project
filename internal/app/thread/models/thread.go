@@ -21,6 +21,7 @@ type Vote struct {
 type Repository interface {
 	CreateThread(thread Thread) (Thread, error)
 	GetThreadBySlugOrId(slug string, id int) (Thread, error)
+	GetThreadById(id int) (Thread, error)
 	GetThreads(slug string, limit int, since string, desc bool) ([]Thread, error)
 	UpdateThreadBySlugOrId(thread Thread) (Thread, error)
 	CreateVote(vote Vote) error

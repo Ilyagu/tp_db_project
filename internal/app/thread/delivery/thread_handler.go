@@ -45,34 +45,36 @@ func (th *ThreadHandler) CreateThreadHandler(ctx *fasthttp.RequestCtx) {
 	}
 	newThread.Forum = slug
 
-	exsistsThread, err := th.threadUsecase.GetThreadBySlugOrId(newThread.Slug)
+	if newThread.Slug != "" {
+		exsistsThread, err := th.threadUsecase.GetThreadBySlugOrId(newThread.Slug)
+		if err == nil {
+			exsistsThreadBody, err := exsistsThread.MarshalJSON()
+			if err != nil {
+				log.Println(err)
+				ctx.SetStatusCode(http.StatusInternalServerError)
+				return
+			}
+			ctx.SetStatusCode(http.StatusConflict)
+			ctx.SetBody(exsistsThreadBody)
+			return
+		}
+	}
+	newThreadResp, err := th.threadUsecase.CreateThread(newThread)
 	if err != nil {
-		newThreadResp, err := th.threadUsecase.CreateThread(newThread)
-		if err != nil {
-			responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
-			return
-		}
-		if newThread.Slug == "" {
-			newThreadResp.Slug = ""
-		}
-		newThreadRespBody, err := newThreadResp.MarshalJSON()
-		if err != nil {
-			log.Println(err)
-			ctx.SetStatusCode(http.StatusInternalServerError)
-			return
-		}
-		ctx.SetStatusCode(http.StatusCreated)
-		ctx.SetBody(newThreadRespBody)
+		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
 		return
 	}
-	exsistsThreadBody, err := exsistsThread.MarshalJSON()
+	if newThread.Slug == "" {
+		newThreadResp.Slug = ""
+	}
+	newThreadRespBody, err := newThreadResp.MarshalJSON()
 	if err != nil {
 		log.Println(err)
 		ctx.SetStatusCode(http.StatusInternalServerError)
 		return
 	}
-	ctx.SetStatusCode(http.StatusConflict)
-	ctx.SetBody(exsistsThreadBody)
+	ctx.SetStatusCode(http.StatusCreated)
+	ctx.SetBody(newThreadRespBody)
 }
 
 func (th *ThreadHandler) GetThreadHandler(ctx *fasthttp.RequestCtx) {

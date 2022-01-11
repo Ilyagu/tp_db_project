@@ -17,6 +17,8 @@
 report.html
 technopark-dbms-forum
 go.sum
+tech-db-forum.dat.gz
+tech-db-forum.best.txt
 
 .idea/
 .DS_Store

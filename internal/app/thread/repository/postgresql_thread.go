@@ -21,9 +21,7 @@ func NewThreadRepository(con *pgxpool.Pool) models.Repository {
 func (tr *PostgreThreadRepo) CreateThread(thread models.Thread) (models.Thread, error) {
 	var newThread models.Thread
 	var err error
-	if thread.Slug == "" {
-		thread.Slug = thread.Forum
-	}
+
 	createdTime := &time.Time{}
 	if thread.Created == "" {
 		err = tr.Conn.QueryRow(context.Background(), CreateThreadNoCreatedQuery,
@@ -49,7 +47,22 @@ func (tr *PostgreThreadRepo) CreateThread(thread models.Thread) (models.Thread, 
 func (tr *PostgreThreadRepo) GetThreadBySlugOrId(slug string, id int) (models.Thread, error) {
 	var exsistsThread models.Thread
 	createdTime := &time.Time{}
-	err := tr.Conn.QueryRow(context.Background(), GetThreadBySlugOrIdQuery, slug, id).
+	err := tr.Conn.QueryRow(context.Background(), GetThreadBySlugOrIdQuery, id, slug).
+		Scan(&exsistsThread.Id, &exsistsThread.Title, &exsistsThread.Author,
+			&exsistsThread.Forum, &exsistsThread.Message, &exsistsThread.Slug,
+			&exsistsThread.Votes, createdTime)
+	if err != nil {
+		return models.Thread{}, err
+	}
+	exsistsThread.Created = strfmt.DateTime(createdTime.UTC()).String()
+
+	return exsistsThread, nil
+}
+
+func (tr *PostgreThreadRepo) GetThreadById(id int) (models.Thread, error) {
+	var exsistsThread models.Thread
+	createdTime := &time.Time{}
+	err := tr.Conn.QueryRow(context.Background(), GetThreadByIdQuery, id).
 		Scan(&exsistsThread.Id, &exsistsThread.Title, &exsistsThread.Author,
 			&exsistsThread.Forum, &exsistsThread.Message, &exsistsThread.Slug,
 			&exsistsThread.Votes, createdTime)

@@ -2,16 +2,20 @@ package repository
 
 const (
 	CreateThreadQuery = `insert into threads(title, author, forum, message, slug, created)
-	values ($1,$2,$3,$4,$5,$6)
+	values ($1,(select nickname from users where nickname=$2),(select slug from forums where forums.slug=$3),$4,$5,$6)
 	returning id, title, author, forum, message, slug, votes, created;`
 
 	CreateThreadNoCreatedQuery = `insert into threads(title, author, forum, message, slug)
-	values ($1,$2,$3,$4,$5)
+	values ($1,(select nickname from users where nickname=$2),(select slug from forums where forums.slug=$3),$4,$5)
 	returning id, title, author, forum, message, slug, votes, created;`
 
-	GetThreadBySlugOrIdQuery = `select t.id, t.title, u.nickname as author, f.slug as forum, t.message, t.slug, t.votes, t.created
-    from threads t join forums f on t.forum = f.slug join users u on t.author = u.nickname
-	where t.slug=$1 or t.id=$2;`
+	GetThreadBySlugOrIdQuery = `select id, title, (select nickname from users where nickname=threads.author) as author,
+		(select forums.slug from forums where slug=threads.forum) as forum, message, slug, votes, created
+	from threads where id=$1 or slug=$2;`
+
+	GetThreadByIdQuery = `select id, title, (select nickname from users where nickname=threads.author) as author,
+		(select forums.slug from forums where slug=threads.forum) as forum, message, slug, votes, created
+	from threads where id=$1;`
 
 	UpdateThreadQuery = `update threads set title=$1, message=$2 where slug=$3 or id=$4
 	returning id, title, author, forum, message, slug, votes, created;`

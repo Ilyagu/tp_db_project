@@ -30,7 +30,7 @@ func NewPostHandler(router *router.Router, tu threadModels.Usecase, pu postModel
 
 	router.POST("/api/thread/{slug_or_id}/create", middlware.ReponseMiddlwareAndLogger(postHandler.CreatePostHandler))
 	router.GET("/api/thread/{slug_or_id}/posts", middlware.ReponseMiddlwareAndLogger(postHandler.GetPostsHandler))
-	router.GET("/api/post/{id}/details", middlware.ReponseMiddlwareAndLogger(postHandler.GetPostHandler))
+	router.GET("/api/post/{id}/details", middlware.ReponseMiddlwareAndLogger(postHandler.GetPostFullHandler))
 	router.POST("/api/post/{id}/details", middlware.ReponseMiddlwareAndLogger(postHandler.UpdatePostHandler))
 	router.POST("/api/service/clear", middlware.ReponseMiddlwareAndLogger(postHandler.ClearAllHandler))
 	router.GET("/api/service/status", middlware.ReponseMiddlwareAndLogger(postHandler.ServiceStatusHandler))
@@ -143,7 +143,7 @@ func (ph *PostHandler) GetPostsHandler(ctx *fasthttp.RequestCtx) {
 	return
 }
 
-func (ph *PostHandler) GetPostHandler(ctx *fasthttp.RequestCtx) {
+func (ph *PostHandler) GetPostFullHandler(ctx *fasthttp.RequestCtx) {
 	postId, err := strconv.Atoi(ctx.UserValue("id").(string))
 	if err != nil {
 		responses.SendErrorResponse(ctx, http.StatusBadRequest, "bad request")

@@ -26,19 +26,6 @@ func NewThreadUsecase(tr threadModels.Repository, ur userModels.Repository, fr f
 }
 
 func (tu *ThreadUsecase) CreateThread(thread threadModels.Thread) (threadModels.Thread, error) {
-
-	forum, err := tu.forumRepo.GetForum(thread.Forum)
-	if err != nil {
-		return threadModels.Thread{}, err
-	}
-	author, err := tu.userRepo.GetUserByNickname(thread.Author)
-	if err != nil {
-		return threadModels.Thread{}, err
-	}
-
-	thread.Forum = forum.Slug
-	thread.Author = author.Nickname
-
 	newThread, err := tu.threadRepo.CreateThread(thread)
 	return newThread, err
 }

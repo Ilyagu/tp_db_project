@@ -31,7 +31,7 @@ create unlogged table if not exists threads (
   constraint fk_th_forum foreign key (forum) references forums (slug)
 );
 
-create unlogged table posts
+create unlogged table if not exists posts
 (
     id        bigserial primary key,
     parent    integer default 0,
@@ -181,31 +181,32 @@ create trigger update_path
     for each row
 execute procedure update_path();
 
-create index post_first_parent_thread_index on posts ((posts.path[1]), thread);
-create index post_first_parent_id_index on posts ((posts.path[1]), id);
-create index post_first_parent_index on posts ((posts.path[1]));
-create index post_path_index on posts ((posts.path));
-create index post_thread_index on posts (thread);
-create index post_thread_id_index on posts (thread, id);
-create index post_path_id_index on posts (id, (posts.path));
-create index post_thread_path_id_index on posts (thread, (posts.parent), id);
+create index if not exists idx_post_first_parent_thread on posts ((path[1]), thread);
+create index if not exists idx_post_first_parent_id on posts ((path[1]), id);
+create index if not exists idx_post_first_parent on posts ((path[1]));
+create index if not exists idx_post_first_parent_parent on posts ((path[1]), parent);
+create index if not exists idx_post_path on posts (path);
+create index if not exists idx_post_thread on posts (thread);
+create index if not exists idx_post_thread_id on posts (thread, id);
+create index if not exists idx_post_path_id on posts (id, path);
+create index if not exists idx_post_thread_path_id on posts (thread, parent, id);
 
-create index forum_slug_lower_index on forums (slug);
+create index if not exists idx_forum_slug on forums (slug);
 
-create index users_nickname_lower_index on users (nickname);
-create index users_nickname_index on users (nickname);
-create index users_email_index on users (email);
+create index if not exists idx_users_nickname on users using hash(nickname);
+create index if not exists idx_users_email on users (email);
+create index if not exists idx_users_nickname_email on users (nickname, email);
 
-create index users_forum_forum_user_index on users_to_forums (forum, nickname);
-create index users_forum_user_index on users_to_forums (nickname);
-create index users_forum_forum_index on users_to_forums (forum);
+create index if not exists idx_users_to_forum_nickname_forum on users_to_forums (nickname, forum);
+create index if not exists idx_users_to_forum_nickname on users_to_forums (nickname);
+create index if not exists idx_users_to_forum_forum on users_to_forums (forum);
 
-create index thread_slug_index on threads (slug);
-create index thread_slug_id_index on threads (slug, id);
-create index thread_forum_lower_index on threads (forum);
-create index thread_id_forum_index on threads (id, forum);
-create index thread_created_index on threads (created);
+create index if not exists idx_thread_slug on threads using hash (slug);
+create index if not exists idx_thread_slug_id on threads (id, slug);
+create index if not exists idx_thread_forum on threads using hash (forum);
+create index if not exists idx_thread_created on threads (created);
+create index if not exists idx_thread_user on threads using hash (author);
 
-create index vote_nickname on votes (nickname, thread_id, voice);
+create unique index if not exists idx_vote_nickname_threadid_voice on votes (thread_id, nickname, voice);
 
 vacuum analyse;
