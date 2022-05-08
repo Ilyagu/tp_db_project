@@ -25,7 +25,7 @@ func main() {
 	router := router.New()
 
 	dbpool, err := pgxpool.Connect(context.Background(),
-		"host=localhost port=5432 user=ilyagu dbname=forum password=password sslmode=disable",
+		"host=89.208.196.139 port=5432 user=ilyagu dbname=forum password=password sslmode=disable",
 	)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
