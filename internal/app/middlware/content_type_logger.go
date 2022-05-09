@@ -2,14 +2,15 @@ package middlware
 
 import (
 	"log"
-
-	"github.com/valyala/fasthttp"
+	"net/http"
 )
 
-func ReponseMiddlwareAndLogger(next fasthttp.RequestHandler) fasthttp.RequestHandler {
-	return func(ctx *fasthttp.RequestCtx) {
-		ctx.Response.Header.Set("Content-Type", "application/json")
-		log.Printf("METHOD %s REMOTEADDR %s URL %s", ctx.Method(), ctx.RemoteAddr(), ctx.RequestURI())
-		next(ctx)
+func ReponseMiddlwareAndLogger() (mw func(http.Handler) http.Handler) {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			log.Printf("METHOD %s REMOTEADDR %s URL %s", r.Method, r.RemoteAddr, r.RequestURI)
+			next.ServeHTTP(w, r)
+		})
 	}
 }

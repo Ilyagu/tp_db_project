@@ -5,6 +5,7 @@ import (
 	fd "dbproject/internal/app/forum/delivery"
 	fr "dbproject/internal/app/forum/repository"
 	fu "dbproject/internal/app/forum/usecase"
+	"dbproject/internal/app/middlware"
 	pd "dbproject/internal/app/post/delivery"
 	pr "dbproject/internal/app/post/repository"
 	pu "dbproject/internal/app/post/usecase"
@@ -17,12 +18,15 @@ import (
 	"log"
 
 	"github.com/fasthttp/router"
+	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/valyala/fasthttp"
 )
 
 func main() {
 	router := router.New()
+	muxRouter := mux.NewRouter()
+	muxRouter.Use(middlware.ReponseMiddlwareAndLogger())
 
 	dbpool, err := pgxpool.Connect(context.Background(),
 		"host=89.208.196.139 port=5432 user=ilyagu dbname=forum password=password sslmode=disable",
@@ -47,7 +51,7 @@ func main() {
 
 	// delivety
 	fd.NewForumHandler(router, forumUC, userUC)
-	ud.NewUserHandler(router, userUC)
+	ud.NewUserHandler(muxRouter, userUC)
 	td.NewThreadHandler(router, threadUC, forumUC)
 	pd.NewPostHandler(router, threadUC, postUC)
 

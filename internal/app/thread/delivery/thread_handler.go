@@ -10,8 +10,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/fasthttp/router"
-	"github.com/valyala/fasthttp"
+	"github.com/gorilla/mux"
 )
 
 type ThreadHandler struct {
@@ -19,13 +18,13 @@ type ThreadHandler struct {
 	forumsUseacse forumModels.Usecase
 }
 
-func NewThreadHandler(router *router.Router, tu threadModels.Usecase, fu forumModels.Usecase) *ThreadHandler {
+func NewThreadHandler(router *mux.Router, tu threadModels.Usecase, fu forumModels.Usecase) *ThreadHandler {
 	threadHandler := &ThreadHandler{
 		threadUsecase: tu,
 		forumsUseacse: fu,
 	}
 
-	router.POST("/api/forum/{slug}/create", middlware.ReponseMiddlwareAndLogger(threadHandler.CreateThreadHandler))
+	router.HandleFunc("/api/forum/{slug}/create", threadHandler.CreateThreadHandler).Methods("POST", "OPTIONS")
 	router.GET("/api/forum/{slug}/threads", middlware.ReponseMiddlwareAndLogger(threadHandler.GetThreads))
 	router.GET("/api/thread/{slug_or_id}/details", middlware.ReponseMiddlwareAndLogger(threadHandler.GetThreadHandler))
 	router.POST("/api/thread/{slug_or_id}/details", middlware.ReponseMiddlwareAndLogger(threadHandler.UpdateThreadHandler))
@@ -33,14 +32,13 @@ func NewThreadHandler(router *router.Router, tu threadModels.Usecase, fu forumMo
 	return threadHandler
 }
 
-func (th *ThreadHandler) CreateThreadHandler(ctx *fasthttp.RequestCtx) {
-	slug := ctx.UserValue("slug").(string)
+func (th *ThreadHandler) CreateThreadHandler(w http.ResponseWriter, r *http.Request) {
+	slug := mux.Vars(r)["slug"]
 
-	newThread := threadModels.Thread{}
-	err := json.Unmarshal(ctx.PostBody(), &newThread)
+	var newThread threadModels.Thread
+	err := responses.ReadJSON(r, &newThread)
 	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusBadRequest)
+		responses.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	newThread.Forum = slug
@@ -48,91 +46,58 @@ func (th *ThreadHandler) CreateThreadHandler(ctx *fasthttp.RequestCtx) {
 	if newThread.Slug != "" {
 		exsistsThread, err := th.threadUsecase.GetThreadBySlugOrId(newThread.Slug)
 		if err == nil {
-			exsistsThreadBody, err := exsistsThread.MarshalJSON()
-			if err != nil {
-				log.Println(err)
-				ctx.SetStatusCode(http.StatusInternalServerError)
-				return
-			}
-			ctx.SetStatusCode(http.StatusConflict)
-			ctx.SetBody(exsistsThreadBody)
+			responses.Send(w, http.StatusConflict, exsistsThread)
 			return
 		}
 	}
 	newThreadResp, err := th.threadUsecase.CreateThread(newThread)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	if newThread.Slug == "" {
 		newThreadResp.Slug = ""
 	}
-	newThreadRespBody, err := newThreadResp.MarshalJSON()
-	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusCreated)
-	ctx.SetBody(newThreadRespBody)
+	responses.Send(w, http.StatusCreated, newThreadResp)
 }
 
-func (th *ThreadHandler) GetThreadHandler(ctx *fasthttp.RequestCtx) {
-	slug_or_id := ctx.UserValue("slug_or_id").(string)
+func (th *ThreadHandler) GetThreadHandler(w http.ResponseWriter, r *http.Request) {
+	slugOrId := mux.Vars(r)["slug_or_id"]
 
-	thread, err := th.threadUsecase.GetThreadBySlugOrId(slug_or_id)
+	thread, err := th.threadUsecase.GetThreadBySlugOrId(slugOrId)
 	if err != nil {
 		log.Println(err)
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
-	threadBody, err := thread.MarshalJSON()
-	if err != nil {
-		log.Println()
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetBody(threadBody)
+	responses.Send(w, http.StatusOK, thread)
 }
 
-func (th *ThreadHandler) UpdateThreadHandler(ctx *fasthttp.RequestCtx) {
-	slugOrId := ctx.UserValue("slug_or_id").(string)
+func (th *ThreadHandler) UpdateThreadHandler(w http.ResponseWriter, r *http.Request) {
+	slugOrId := mux.Vars(r)["slug_or_id"]
 
-	threadToUpdate := threadModels.Thread{}
-	err := json.Unmarshal(ctx.PostBody(), &threadToUpdate)
+	var threadToUpdate threadModels.Thread
+	err := responses.ReadJSON(r, &threadToUpdate)
 	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusBadRequest)
+		responses.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	updatedThread, err := th.threadUsecase.UpdateThreadBySlugOrId(threadToUpdate, slugOrId)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	updatedThreadBody, err := updatedThread.MarshalJSON()
-	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetBody(updatedThreadBody)
+	responses.Send(w, http.StatusOK, updatedThread)
 }
 
-func (th *ThreadHandler) GetThreads(ctx *fasthttp.RequestCtx) {
-	forumSlug, ok := ctx.UserValue("slug").(string)
-	if !ok {
-		responses.SendErrorResponse(ctx, http.StatusBadRequest, "bad request")
-		return
-	}
+func (th *ThreadHandler) GetThreads(w http.ResponseWriter, r *http.Request) {
+	forumSlug := mux.Vars(r)["slug_or_id"]
 
 	limit, err := utils.ExtractIntValue(ctx, "limit")
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if limit == 0 {
@@ -143,51 +108,38 @@ func (th *ThreadHandler) GetThreads(ctx *fasthttp.RequestCtx) {
 
 	desc, err := utils.ExtractBoolValue(ctx, "desc")
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	_, err = th.forumsUseacse.GetForum(forumSlug)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	threads, err := th.threadUsecase.GetThreads(forumSlug, limit, since, desc)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	threadsBody, err := json.Marshal(threads)
-	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetBody(threadsBody)
+	responses.SendArray(w, http.StatusOK, threads)
 }
 
-func (th *ThreadHandler) CreateVoteHandler(ctx *fasthttp.RequestCtx) {
+func (th *ThreadHandler) CreateVoteHandler(w http.ResponseWriter, r *http.Request) {
 	slugOrId := ctx.UserValue("slug_or_id").(string)
 
 	newVote := threadModels.Vote{}
 	err := json.Unmarshal(ctx.PostBody(), &newVote)
 	if err != nil {
 		log.Println(err)
-		ctx.SetStatusCode(http.StatusBadRequest)
+		responses.SendWithoutBody(w, http.StatusBadRequest)
 		return
 	}
 
 	thread, err := th.threadUsecase.CreateVote(newVote, slugOrId)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	threadBody, err := thread.MarshalJSON()
-	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
-		return
-	}
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetBody(threadBody)
+	responses.Send(w, http.StatusOK, thread)
 }

@@ -1,15 +1,12 @@
 package delivery
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
-	"github.com/fasthttp/router"
-	"github.com/valyala/fasthttp"
+	"github.com/gorilla/mux"
 
 	forumModels "dbproject/internal/app/forum/models"
-	"dbproject/internal/app/middlware"
 	userModels "dbproject/internal/app/user/models"
 	"dbproject/internal/pkg/responses"
 )
@@ -19,27 +16,23 @@ type Userandler struct {
 	userUsecase  userModels.Usecase
 }
 
-func NewUserHandler(router *router.Router, uu userModels.Usecase) {
+func NewUserHandler(router *mux.Router, uu userModels.Usecase) {
 	userHandler := &Userandler{
 		userUsecase: uu,
 	}
 
-	router.POST("/api/user/{nickname}/create",
-		middlware.ReponseMiddlwareAndLogger(userHandler.CreateUserHandler))
-	router.GET("/api/user/{nickname}/profile",
-		middlware.ReponseMiddlwareAndLogger(userHandler.GetUserHandler))
-	router.POST("/api/user/{nickname}/profile",
-		middlware.ReponseMiddlwareAndLogger(userHandler.UpdateUserHandler))
+	router.HandleFunc("/api/user/{nickname}/create", userHandler.CreateUserHandler).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/user/{nickname}/profile", userHandler.GetUserHandler).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/user/{nickname}/profile", userHandler.UpdateUserHandler).Methods("POST", "OPTIONS")
 }
 
-func (uh *Userandler) CreateUserHandler(ctx *fasthttp.RequestCtx) {
-	nickname := ctx.UserValue("nickname").(string)
+func (uh *Userandler) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
+	nickname := mux.Vars(r)["nickname"]
 
-	newUser := userModels.User{}
-	err := json.Unmarshal(ctx.PostBody(), &newUser)
+	var newUser userModels.User
+	err := responses.ReadJSON(r, &newUser)
 	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusBadRequest)
+		responses.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	newUser.Nickname = nickname
@@ -49,62 +42,40 @@ func (uh *Userandler) CreateUserHandler(ctx *fasthttp.RequestCtx) {
 		user, err := uh.userUsecase.CreateUser(newUser)
 		if err != nil {
 			log.Println(err)
-			ctx.SetStatusCode(http.StatusInternalServerError)
+			responses.SendWithoutBody(w, http.StatusInternalServerError)
 			return
 		}
-		userBody, err := user.MarshalJSON()
-		if err != nil {
-			log.Println(err)
-			ctx.SetStatusCode(http.StatusInternalServerError)
-			return
-		}
-		ctx.SetStatusCode(http.StatusCreated)
-		ctx.SetBody(userBody)
+		responses.Send(w, http.StatusCreated, user)
 		return
 	}
-	existsUsersBody, err := json.Marshal(exsistsUsers)
-	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusConflict)
-	ctx.SetBody(existsUsersBody)
+	responses.SendArray(w, http.StatusConflict, exsistsUsers)
 }
 
-func (uh *Userandler) GetUserHandler(ctx *fasthttp.RequestCtx) {
-	nickname := ctx.UserValue("nickname").(string)
+func (uh *Userandler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
+	nickname := mux.Vars(r)["nickname"]
 
 	user, err := uh.userUsecase.GetUserByNickname(nickname)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	userBody, err := user.MarshalJSON()
-	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetBody(userBody)
+	responses.Send(w, http.StatusOK, user)
 }
 
-func (uh *Userandler) UpdateUserHandler(ctx *fasthttp.RequestCtx) {
-	nickname := ctx.UserValue("nickname").(string)
+func (uh *Userandler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
+	nickname := mux.Vars(r)["nickname"]
 
-	newUser := userModels.User{}
-	err := json.Unmarshal(ctx.PostBody(), &newUser)
+	var newUser userModels.User
+	err := responses.ReadJSON(r, &newUser)
 	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusBadRequest)
+		responses.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	newUser.Nickname = nickname
 
 	existsUser, err := uh.userUsecase.GetUserByNickname(nickname)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	if newUser.About == "" {
@@ -118,15 +89,8 @@ func (uh *Userandler) UpdateUserHandler(ctx *fasthttp.RequestCtx) {
 	}
 	updateUser, err := uh.userUsecase.UpdateUser(newUser)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusConflict, err.Error())
+		responses.SendError(w, http.StatusConflict, err.Error())
 		return
 	}
-	userUpdateBody, err := updateUser.MarshalJSON()
-	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusInternalServerError)
-		return
-	}
-	ctx.SetStatusCode(http.StatusOK)
-	ctx.SetBody(userUpdateBody)
+	responses.Send(w, http.StatusOK, updateUser)
 }
