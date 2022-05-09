@@ -16,6 +16,8 @@ import (
 	uu "dbproject/internal/app/user/usecase"
 	"log"
 
+	fasthttpprom "github.com/701search/fasthttp-prometheus-middleware"
+
 	"github.com/fasthttp/router"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/valyala/fasthttp"
@@ -23,9 +25,11 @@ import (
 
 func main() {
 	router := router.New()
+	p := fasthttpprom.NewPrometheus("")
+	p.Use(router)
 
 	dbpool, err := pgxpool.Connect(context.Background(),
-		"host=89.208.196.139 port=5432 user=ilyagu dbname=forum password=password sslmode=disable",
+		"host=localhost port=5432 user=ilyagu dbname=forum password=password sslmode=disable",
 	)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
@@ -51,6 +55,6 @@ func main() {
 	td.NewThreadHandler(router, threadUC, forumUC)
 	pd.NewPostHandler(router, threadUC, postUC)
 
-	err = fasthttp.ListenAndServe(":5000", router.Handler)
+	err = fasthttp.ListenAndServe(":5000", p.Handler)
 	log.Fatal(err)
 }
