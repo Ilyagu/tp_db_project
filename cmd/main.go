@@ -52,7 +52,7 @@ func main() {
 	// delivety
 	fd.NewForumHandler(router, forumUC, userUC)
 	ud.NewUserHandler(muxRouter, userUC)
-	td.NewThreadHandler(router, threadUC, forumUC)
+	td.NewThreadHandler(muxRouter, threadUC, forumUC)
 	pd.NewPostHandler(router, threadUC, postUC)
 
 	err = fasthttp.ListenAndServe(":5000", router.Handler)

@@ -1,13 +1,12 @@
 package utils
 
 import (
+	"net/http"
 	"strconv"
-
-	"github.com/valyala/fasthttp"
 )
 
-func ExtractBoolValue(ctx *fasthttp.RequestCtx, valueName string) (bool, error) {
-	valueStr := string(ctx.QueryArgs().Peek(valueName))
+func ExtractBoolValue(r *http.Request, valueName string) (bool, error) {
+	valueStr := r.URL.Query().Get(valueName)
 	if valueStr == "" {
 		return false, nil
 	}
@@ -18,12 +17,12 @@ func ExtractBoolValue(ctx *fasthttp.RequestCtx, valueName string) (bool, error) 
 	return value, nil
 }
 
-func ExtractIntValue(ctx *fasthttp.RequestCtx, valueName string) (int, error) {
-	ValueStr := string(ctx.QueryArgs().Peek(valueName))
-	if ValueStr == "" {
+func ExtractIntValue(r *http.Request, valueName string) (int, error) {
+	valueStr := r.URL.Query().Get(valueName)
+	if valueStr == "" {
 		return 0, nil
 	}
-	value, err := strconv.Atoi(ValueStr)
+	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		return -1, err
 	}

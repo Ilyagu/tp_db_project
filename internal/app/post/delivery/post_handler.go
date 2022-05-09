@@ -13,8 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fasthttp/router"
-	"github.com/valyala/fasthttp"
+	"github.com/gorilla/mux"
 )
 
 type PostHandler struct {
@@ -22,7 +21,7 @@ type PostHandler struct {
 	postUsecase   postModels.Usecase
 }
 
-func NewPostHandler(router *router.Router, tu threadModels.Usecase, pu postModels.Usecase) *PostHandler {
+func NewPostHandler(router *mux.Router, tu threadModels.Usecase, pu postModels.Usecase) *PostHandler {
 	postHandler := &PostHandler{
 		threadUsecase: tu,
 		postUsecase:   pu,
@@ -38,86 +37,68 @@ func NewPostHandler(router *router.Router, tu threadModels.Usecase, pu postModel
 	return postHandler
 }
 
-func (ph *PostHandler) CreatePostHandler(ctx *fasthttp.RequestCtx) {
-	slugOrId := ctx.UserValue("slug_or_id").(string)
+func (ph *PostHandler) CreatePostHandler(w http.ResponseWriter, r *http.Request) {
+	slugOrId := mux.Vars(r)["slug_or_id"]
 
-	newPosts := make([]postModels.Post, 0)
-	err := json.Unmarshal(ctx.PostBody(), &newPosts)
+	var newPosts []postModels.Post
+	err := responses.ReadJSONArray(r, &newPosts)
 	if err != nil {
-		log.Println(err)
-		ctx.SetStatusCode(http.StatusBadRequest)
+		responses.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	existsThread, err := ph.threadUsecase.GetThreadBySlugOrId(slugOrId)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	if len(newPosts) == 0 {
-		newPostsBody, err := json.Marshal(newPosts)
-		if err != nil {
-			responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
-			return
-		}
-		ctx.SetStatusCode(http.StatusCreated)
-		ctx.SetBody(newPostsBody)
+		responses.SendArray(w, http.StatusCreated, newPosts)
 		return
 	}
 
 	newPostsResp, err := ph.postUsecase.CreatePosts(newPosts, existsThread.Forum, existsThread.Id)
 	if err == responses.UserNotExsists {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusConflict, err.Error())
+		responses.SendError(w, http.StatusConflict, err.Error())
 		return
 	}
-
-	newPostsBody, err := json.Marshal(newPostsResp)
-	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
-		return
-	}
-	ctx.SetStatusCode(http.StatusCreated)
-	ctx.SetBody(newPostsBody)
+	responses.SendArray(w, http.StatusCreated, newPostsResp)
 }
 
-func (ph *PostHandler) GetPostsHandler(ctx *fasthttp.RequestCtx) {
-	threadSlugOrID, ok := ctx.UserValue("slug_or_id").(string)
-	if !ok {
-		responses.SendErrorResponse(ctx, http.StatusBadRequest, "bad request")
-		return
-	}
+func (ph *PostHandler) GetPostsHandler(w http.ResponseWriter, r *http.Request) {
+	threadSlugOrID := mux.Vars(r)["slug_or_id"]
 
-	limit, err := utils.ExtractIntValue(ctx, "limit")
+	limit, err := utils.ExtractIntValue(r, "limit")
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	since, err := utils.ExtractIntValue(ctx, "since")
+	since, err := utils.ExtractIntValue(r, "since")
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	sortType := string(ctx.QueryArgs().Peek("sort"))
+	sortType := r.URL.Query().Get("sort")
 	if sortType == "" {
 		sortType = "flat"
 	}
 
-	desc, err := utils.ExtractBoolValue(ctx, "desc")
+	desc, err := utils.ExtractBoolValue(r, "desc")
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	posts, err := ph.postUsecase.GetPosts(threadSlugOrID, limit, since, sortType, desc)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -125,7 +106,7 @@ func (ph *PostHandler) GetPostsHandler(ctx *fasthttp.RequestCtx) {
 		nullPosts := make([]postModels.Post, 0)
 		nullPostsBody, err := json.Marshal(nullPosts)
 		if err != nil {
-			responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+			responses.SendError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		ctx.SetStatusCode(http.StatusOK)
@@ -134,7 +115,7 @@ func (ph *PostHandler) GetPostsHandler(ctx *fasthttp.RequestCtx) {
 	}
 	postsBody, err := json.Marshal(posts)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -143,10 +124,10 @@ func (ph *PostHandler) GetPostsHandler(ctx *fasthttp.RequestCtx) {
 	return
 }
 
-func (ph *PostHandler) GetPostFullHandler(ctx *fasthttp.RequestCtx) {
+func (ph *PostHandler) GetPostFullHandler(w http.ResponseWriter, r *http.Request) {
 	postId, err := strconv.Atoi(ctx.UserValue("id").(string))
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusBadRequest, "bad request")
+		responses.SendError(w, http.StatusBadRequest, "bad request")
 		return
 	}
 
@@ -163,13 +144,13 @@ func (ph *PostHandler) GetPostFullHandler(ctx *fasthttp.RequestCtx) {
 
 	post, err := ph.postUsecase.GetPost(postId, relatedStrs)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	postBody, err := json.Marshal(post)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -177,10 +158,10 @@ func (ph *PostHandler) GetPostFullHandler(ctx *fasthttp.RequestCtx) {
 	ctx.SetBody(postBody)
 }
 
-func (ph *PostHandler) UpdatePostHandler(ctx *fasthttp.RequestCtx) {
+func (ph *PostHandler) UpdatePostHandler(w http.ResponseWriter, r *http.Request) {
 	postId, err := strconv.Atoi(ctx.UserValue("id").(string))
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusBadRequest, "bad request")
+		responses.SendError(w, http.StatusBadRequest, "bad request")
 		return
 	}
 
@@ -194,13 +175,13 @@ func (ph *PostHandler) UpdatePostHandler(ctx *fasthttp.RequestCtx) {
 
 	post, err := ph.postUsecase.UpdatePost(postId, updateMessage.Message)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusNotFound, err.Error())
+		responses.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	postBody, err := json.Marshal(post)
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -208,16 +189,16 @@ func (ph *PostHandler) UpdatePostHandler(ctx *fasthttp.RequestCtx) {
 	ctx.SetBody(postBody)
 }
 
-func (ph *PostHandler) ServiceStatusHandler(ctx *fasthttp.RequestCtx) {
+func (ph *PostHandler) ServiceStatusHandler(w http.ResponseWriter, r *http.Request) {
 	status, err := ph.postUsecase.ServiceStatus()
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	statusBody, err := status.MarshalJSON()
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -225,10 +206,10 @@ func (ph *PostHandler) ServiceStatusHandler(ctx *fasthttp.RequestCtx) {
 	ctx.SetBody(statusBody)
 }
 
-func (ph *PostHandler) ClearAllHandler(ctx *fasthttp.RequestCtx) {
+func (ph *PostHandler) ClearAllHandler(w http.ResponseWriter, r *http.Request) {
 	err := ph.postUsecase.ClearAll()
 	if err != nil {
-		responses.SendErrorResponse(ctx, http.StatusInternalServerError, err.Error())
+		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	ctx.SetStatusCode(http.StatusOK)

@@ -2,11 +2,9 @@ package delivery
 
 import (
 	forumModels "dbproject/internal/app/forum/models"
-	"dbproject/internal/app/middlware"
 	threadModels "dbproject/internal/app/thread/models"
 	"dbproject/internal/pkg/responses"
 	"dbproject/internal/pkg/utils"
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -25,10 +23,10 @@ func NewThreadHandler(router *mux.Router, tu threadModels.Usecase, fu forumModel
 	}
 
 	router.HandleFunc("/api/forum/{slug}/create", threadHandler.CreateThreadHandler).Methods("POST", "OPTIONS")
-	router.GET("/api/forum/{slug}/threads", middlware.ReponseMiddlwareAndLogger(threadHandler.GetThreads))
-	router.GET("/api/thread/{slug_or_id}/details", middlware.ReponseMiddlwareAndLogger(threadHandler.GetThreadHandler))
-	router.POST("/api/thread/{slug_or_id}/details", middlware.ReponseMiddlwareAndLogger(threadHandler.UpdateThreadHandler))
-	router.POST("/api/thread/{slug_or_id}/vote", middlware.ReponseMiddlwareAndLogger(threadHandler.CreateVoteHandler))
+	router.HandleFunc("/api/forum/{slug}/threads", threadHandler.GetThreads).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/thread/{slug_or_id}/details", threadHandler.GetThreadHandler).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/thread/{slug_or_id}/details", threadHandler.UpdateThreadHandler).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/thread/{slug_or_id}/vote", threadHandler.CreateVoteHandler).Methods("POST", "OPTIONS")
 	return threadHandler
 }
 
@@ -95,7 +93,7 @@ func (th *ThreadHandler) UpdateThreadHandler(w http.ResponseWriter, r *http.Requ
 func (th *ThreadHandler) GetThreads(w http.ResponseWriter, r *http.Request) {
 	forumSlug := mux.Vars(r)["slug_or_id"]
 
-	limit, err := utils.ExtractIntValue(ctx, "limit")
+	limit, err := utils.ExtractIntValue(r, "limit")
 	if err != nil {
 		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -104,9 +102,9 @@ func (th *ThreadHandler) GetThreads(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	since := string(ctx.QueryArgs().Peek("since"))
+	since := r.URL.Query().Get("since")
 
-	desc, err := utils.ExtractBoolValue(ctx, "desc")
+	desc, err := utils.ExtractBoolValue(r, "desc")
 	if err != nil {
 		responses.SendError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -126,13 +124,12 @@ func (th *ThreadHandler) GetThreads(w http.ResponseWriter, r *http.Request) {
 }
 
 func (th *ThreadHandler) CreateVoteHandler(w http.ResponseWriter, r *http.Request) {
-	slugOrId := ctx.UserValue("slug_or_id").(string)
+	slugOrId := mux.Vars(r)["slug_or_id"]
 
-	newVote := threadModels.Vote{}
-	err := json.Unmarshal(ctx.PostBody(), &newVote)
+	var newVote threadModels.Vote
+	err := responses.ReadJSON(r, &newVote)
 	if err != nil {
-		log.Println(err)
-		responses.SendWithoutBody(w, http.StatusBadRequest)
+		responses.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

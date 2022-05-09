@@ -76,6 +76,20 @@ func ReadJSON(r *http.Request, data ReadModel) error {
 	return nil
 }
 
+func ReadJSONArray(r *http.Request, data interface{}) error {
+	byteReq, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(byteReq, &data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func WriteJSONArray(w http.ResponseWriter, data interface{}) error {
 	byteResp, err := json.Marshal(data)
 	if err != nil {
