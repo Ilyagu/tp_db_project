@@ -16,7 +16,7 @@ import (
 	uu "dbproject/internal/app/user/usecase"
 	"log"
 
-	fasthttpprom "github.com/701search/fasthttp-prometheus-middleware"
+	fasthttpprom "dbproject/internal/pkg/metrics"
 
 	"github.com/fasthttp/router"
 	"github.com/jackc/pgx/v4/pgxpool"
